@@ -174,7 +174,20 @@ void PowerSessionManager<HintManagerT>::setThreadsFromPowerSession(
         int64_t sessionId, const std::vector<int32_t> &threadIds, const ProcessTag procTag) {
     std::vector<pid_t> addedThreads;
     std::vector<pid_t> removedThreads;
-    forceSessionActive(sessionId, false);
+    bool wasActive = false;
+
+    {
+        std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
+        auto sessValPtr = mSessionTaskMap.findSession(sessionId);
+        if (sessValPtr != nullptr) {
+            wasActive = sessValPtr->isActive;
+        }
+    }
+
+    if (wasActive) {
+        forceSessionActive(sessionId, false);
+    }
+
     {
         std::lock_guard<std::mutex> lock(mSessionTaskMapMutex);
         mSessionTaskMap.replace(sessionId, threadIds, &addedThreads, &removedThreads);
@@ -208,7 +221,9 @@ void PowerSessionManager<HintManagerT>::setThreadsFromPowerSession(
             }
         }
     }
-    forceSessionActive(sessionId, true);
+    if (wasActive) {
+        forceSessionActive(sessionId, true);
+    }
 }
 
 template <class HintManagerT>
